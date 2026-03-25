@@ -4,7 +4,7 @@ This app connects to a Raspberry Pi umbrella server over **local HTTP** (e.g. `h
 
 ## Configuration
 
-`Info.plist` includes:
+`Info.plist` (project root) includes:
 
 ```xml
 <key>NSAppTransportSecurity</key>

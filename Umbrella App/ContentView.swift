@@ -11,16 +11,20 @@ struct ContentView: View {
     @StateObject private var viewModel = UmbrellaViewModel()
 
     var body: some View {
-        Group {
-            if viewModel.isConnected {
-                ControlView(viewModel: viewModel)
-            } else {
-                ConnectView(viewModel: viewModel)
+        NavigationStack {
+            Group {
+                if viewModel.isConnected {
+                    ControlView(viewModel: viewModel)
+                } else {
+                    ConnectView(viewModel: viewModel)
+                }
             }
         }
     }
 }
 
-#Preview {
-    ContentView()
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+    }
 }
