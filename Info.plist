@@ -11,5 +11,7 @@
 	<string>The umbrella app uses Bluetooth to connect to your Raspberry Pi umbrella controller.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>The umbrella app uses Bluetooth to connect to your Raspberry Pi umbrella controller.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>The umbrella app uses your iPhone's location to send accurate coordinates to the Raspberry Pi.</string>
 </dict>
 </plist>

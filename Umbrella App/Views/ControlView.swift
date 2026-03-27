@@ -35,6 +35,7 @@ struct ControlView: View {
                 VStack(spacing: 20) {
                     headerSection
                     overviewSection
+                    locationSection
                     directionControls
                     stopButton
                     modeSection
@@ -67,7 +68,7 @@ struct ControlView: View {
                         Text("Umbrella Controller")
                             .font(.system(.title2, design: .rounded, weight: .bold))
                             .foregroundStyle(.white)
-                        Text("")
+                        Text("Bluetooth control with live phone location sharing")
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.78))
                     }
@@ -233,6 +234,53 @@ struct ControlView: View {
         }
     }
 
+    private var locationSection: some View {
+        DashboardCard {
+            VStack(alignment: .leading, spacing: 18) {
+                sectionHeader(
+                    title: "Phone Location",
+                    subtitle: "Capture the iPhone's current coordinates and send them to the Raspberry Pi"
+                )
+
+                VStack(alignment: .leading, spacing: 10) {
+                    locationInfoRow(
+                        title: "Permission",
+                        value: viewModel.locationPermissionDescription,
+                        symbol: "location.circle"
+                    )
+                    locationInfoRow(
+                        title: "Latest Coordinates",
+                        value: viewModel.locationSummary,
+                        symbol: "mappin.and.ellipse"
+                    )
+                }
+
+                Button {
+                    Task { await viewModel.sendCurrentLocation() }
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "location.fill")
+                        Text(viewModel.isSendingLocation ? "Requesting Location..." : "Send Current Location")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.green, Color.teal],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(viewModel.isSendingLocation || !viewModel.isConnected)
+            }
+        }
+    }
+
     private var stopButton: some View {
         Button {
             Task { await viewModel.stop() }
@@ -329,6 +377,24 @@ struct ControlView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func locationInfoRow(title: String, value: String, symbol: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: symbol)
+                .frame(width: 20)
+                .foregroundStyle(.green)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
     }
 
     private var positionValue: String {

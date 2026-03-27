@@ -21,6 +21,7 @@ enum UmbrellaBLECommandType: String, Codable, Sendable {
     case move
     case stop
     case mode
+    case location
 }
 
 struct UmbrellaBLECommand: Codable, Sendable {
@@ -28,17 +29,61 @@ struct UmbrellaBLECommand: Codable, Sendable {
     let direction: String?
     let value: String?
     let speed: Int?
+    let latitude: Double?
+    let longitude: Double?
+    let accuracy: Double?
+    let timestamp: String?
 
     static func move(direction: String, speed: Int? = nil) -> Self {
-        Self(type: .move, direction: direction, value: nil, speed: speed)
+        Self(
+            type: .move,
+            direction: direction,
+            value: nil,
+            speed: speed,
+            latitude: nil,
+            longitude: nil,
+            accuracy: nil,
+            timestamp: nil
+        )
     }
 
     static func stop() -> Self {
-        Self(type: .stop, direction: nil, value: nil, speed: nil)
+        Self(
+            type: .stop,
+            direction: nil,
+            value: nil,
+            speed: nil,
+            latitude: nil,
+            longitude: nil,
+            accuracy: nil,
+            timestamp: nil
+        )
     }
 
     static func mode(_ value: String) -> Self {
-        Self(type: .mode, direction: nil, value: value, speed: nil)
+        Self(
+            type: .mode,
+            direction: nil,
+            value: value,
+            speed: nil,
+            latitude: nil,
+            longitude: nil,
+            accuracy: nil,
+            timestamp: nil
+        )
+    }
+
+    static func location(latitude: Double, longitude: Double, accuracy: Double, timestamp: String) -> Self {
+        Self(
+            type: .location,
+            direction: nil,
+            value: nil,
+            speed: nil,
+            latitude: latitude,
+            longitude: longitude,
+            accuracy: accuracy,
+            timestamp: timestamp
+        )
     }
 }
 
@@ -142,6 +187,15 @@ final class UmbrellaBLEManager: NSObject, ObservableObject {
 
     func setMode(_ mode: String) {
         send(command: .mode(mode))
+    }
+
+    func sendLocation(latitude: Double, longitude: Double, accuracy: Double, timestamp: String) {
+        send(command: .location(
+            latitude: latitude,
+            longitude: longitude,
+            accuracy: accuracy,
+            timestamp: timestamp
+        ))
     }
 
     private func send(command: UmbrellaBLECommand) {

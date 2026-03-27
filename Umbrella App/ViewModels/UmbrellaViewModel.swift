@@ -6,6 +6,7 @@
 //
 
 import Combine
+import CoreLocation
 import Foundation
 
 enum ConnectionState: Sendable {
@@ -24,15 +25,24 @@ final class UmbrellaViewModel: ObservableObject {
     @Published private(set) var discoveredDeviceName: String?
     @Published private(set) var connectedDeviceName: String?
     @Published private(set) var isScanning = false
+    @Published private(set) var locationPermissionDescription = "Location permission not requested."
+    @Published private(set) var locationSummary = "No location requested yet."
+    @Published private(set) var isSendingLocation = false
 
     private let bleManager: UmbrellaBLEManager
+    private let locationManager: UmbrellaLocationManager
     private var cancellables = Set<AnyCancellable>()
     private var moveDebounceTask: Task<Void, Never>?
     private let moveDebounceInterval: TimeInterval = 0.15
 
-    init(bleManager: UmbrellaBLEManager? = nil) {
+    init(
+        bleManager: UmbrellaBLEManager? = nil,
+        locationManager: UmbrellaLocationManager? = nil
+    ) {
         self.bleManager = bleManager ?? UmbrellaBLEManager()
+        self.locationManager = locationManager ?? UmbrellaLocationManager()
         bindBLEManager()
+        bindLocationManager()
     }
 
     var isConnected: Bool {
@@ -122,6 +132,28 @@ final class UmbrellaViewModel: ObservableObject {
         bleManager.requestStatus()
     }
 
+    func sendCurrentLocation() async {
+        isSendingLocation = true
+        defer { isSendingLocation = false }
+
+        do {
+            let location = try await locationManager.requestCurrentLocation()
+            let timestamp = ISO8601DateFormatter().string(from: location.timestamp)
+
+            bleManager.sendLocation(
+                latitude: location.coordinate.latitude,
+                longitude: location.coordinate.longitude,
+                accuracy: location.horizontalAccuracy,
+                timestamp: timestamp
+            )
+
+            locationSummary = Self.locationSummary(for: location)
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     private func bindBLEManager() {
         bleManager.$status
             .sink { [weak self] in
@@ -166,6 +198,29 @@ final class UmbrellaViewModel: ObservableObject {
             .store(in: &cancellables)
     }
 
+    private func bindLocationManager() {
+        locationManager.$authorizationDescription
+            .sink { [weak self] in
+                self?.locationPermissionDescription = $0
+            }
+            .store(in: &cancellables)
+
+        locationManager.$lastLocation
+            .sink { [weak self] location in
+                guard let self, let location else { return }
+                self.locationSummary = Self.locationSummary(for: location)
+            }
+            .store(in: &cancellables)
+
+        locationManager.$lastError
+            .sink { [weak self] error in
+                if let error {
+                    self?.lastError = error
+                }
+            }
+            .store(in: &cancellables)
+    }
+
     private func apply(connectionPhase: UmbrellaBLEConnectionPhase) {
         switch connectionPhase {
         case .unavailable(let message):
@@ -177,5 +232,14 @@ final class UmbrellaViewModel: ObservableObject {
         case .connected:
             connectionState = .connected
         }
+    }
+
+    private static func locationSummary(for location: CLLocation) -> String {
+        String(
+            format: "%.6f, %.6f (±%.0fm)",
+            location.coordinate.latitude,
+            location.coordinate.longitude,
+            location.horizontalAccuracy
+        )
     }
 }
