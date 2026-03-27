@@ -1,0 +1,3 @@
+[submodule "18500-shade-rpi"]
+	path = 18500-shade-rpi
+	url = https://github.com/nickpinon/18500-shade-rpi
