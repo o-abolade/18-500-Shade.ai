@@ -103,6 +103,8 @@ final class UmbrellaBLEManager: NSObject, ObservableObject {
     private var commandCharacteristic: CBCharacteristic?
     private var statusCharacteristic: CBCharacteristic?
     private var scanTimeoutTask: Task<Void, Never>?
+    private var connectionTimeoutTask: Task<Void, Never>?
+    private var hasRetriedServiceDiscovery = false
 
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -145,13 +147,18 @@ final class UmbrellaBLEManager: NSObject, ObservableObject {
         connectedDeviceName = nil
         commandCharacteristic = nil
         statusCharacteristic = nil
+        hasRetriedServiceDiscovery = false
         status = nil
         isScanning = true
         connectionPhase = .scanning
+        connectionTimeoutTask?.cancel()
+        connectionTimeoutTask = nil
 
         centralManager.stopScan()
+        // Scan broadly, then filter by advertised service or device name.
+        // Some Pi BLE stacks do not consistently advertise the custom service UUID.
         centralManager.scanForPeripherals(
-            withServices: [UmbrellaBLEConstants.serviceUUID],
+            withServices: nil,
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
         )
 
@@ -161,6 +168,8 @@ final class UmbrellaBLEManager: NSObject, ObservableObject {
     func disconnect() {
         scanTimeoutTask?.cancel()
         scanTimeoutTask = nil
+        connectionTimeoutTask?.cancel()
+        connectionTimeoutTask = nil
         isScanning = false
         centralManager.stopScan()
 
@@ -226,12 +235,13 @@ final class UmbrellaBLEManager: NSObject, ObservableObject {
         connectionPhase = .connecting(discoveredDeviceName)
         peripheral.delegate = self
         centralManager.connect(peripheral, options: nil)
+        scheduleConnectionTimeout()
     }
 
     private func scheduleScanTimeout() {
         scanTimeoutTask?.cancel()
         scanTimeoutTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            try? await Task.sleep(nanoseconds: 12_000_000_000)
             guard !Task.isCancelled, isScanning else { return }
             centralManager.stopScan()
             isScanning = false
@@ -240,11 +250,34 @@ final class UmbrellaBLEManager: NSObject, ObservableObject {
         }
     }
 
+    private func isMatchingUmbrellaPeripheral(
+        _ peripheral: CBPeripheral,
+        advertisementData: [String: Any]
+    ) -> Bool {
+        if resolvedName(for: peripheral).caseInsensitiveCompare(UmbrellaBLEConstants.advertisedName) == .orderedSame {
+            return true
+        }
+
+        if let localName = advertisementData[CBAdvertisementDataLocalNameKey] as? String,
+           localName.caseInsensitiveCompare(UmbrellaBLEConstants.advertisedName) == .orderedSame {
+            return true
+        }
+
+        if let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
+            return serviceUUIDs.contains(UmbrellaBLEConstants.serviceUUID)
+        }
+
+        return false
+    }
+
     private func resetConnectionState() {
+        connectionTimeoutTask?.cancel()
+        connectionTimeoutTask = nil
         discoveredPeripheral = nil
         connectedPeripheral = nil
         commandCharacteristic = nil
         statusCharacteristic = nil
+        hasRetriedServiceDiscovery = false
         connectedDeviceName = nil
         isScanning = false
         status = nil
@@ -254,6 +287,8 @@ final class UmbrellaBLEManager: NSObject, ObservableObject {
         let message: String
 
         switch centralManager.state {
+        case .poweredOn:
+            message = "Bluetooth is ready."
         case .poweredOff:
             message = "Bluetooth is turned off."
         case .unauthorized:
@@ -288,6 +323,53 @@ final class UmbrellaBLEManager: NSObject, ObservableObject {
             lastError = "Failed to decode status from Bluetooth."
         }
     }
+
+    private func scheduleConnectionTimeout() {
+        connectionTimeoutTask?.cancel()
+        connectionTimeoutTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 10_000_000_000)
+            guard !Task.isCancelled else { return }
+            guard case .connecting = connectionPhase else { return }
+
+            if let connectedPeripheral, !hasRetriedServiceDiscovery {
+                hasRetriedServiceDiscovery = true
+                print("BLE retrying service discovery for \(resolvedName(for: connectedPeripheral))")
+                connectedPeripheral.discoverServices(nil)
+                scheduleConnectionTimeout()
+                return
+            }
+
+            let message = "Connected to UmbrellaPi, but service discovery did not finish. Check that the Pi is running the latest ble_server.py."
+            lastError = message
+            connectionPhase = .unavailable(message)
+
+            if let connectedPeripheral {
+                centralManager.cancelPeripheralConnection(connectedPeripheral)
+            } else {
+                resetConnectionState()
+            }
+        }
+    }
+
+    private func chooseCommandCharacteristic(from characteristics: [CBCharacteristic]) -> CBCharacteristic? {
+        if let exactMatch = characteristics.first(where: { $0.uuid == UmbrellaBLEConstants.commandCharacteristicUUID }) {
+            return exactMatch
+        }
+
+        return characteristics.first(where: {
+            $0.properties.contains(.write) || $0.properties.contains(.writeWithoutResponse)
+        })
+    }
+
+    private func chooseStatusCharacteristic(from characteristics: [CBCharacteristic]) -> CBCharacteristic? {
+        if let exactMatch = characteristics.first(where: { $0.uuid == UmbrellaBLEConstants.statusCharacteristicUUID }) {
+            return exactMatch
+        }
+
+        return characteristics.first(where: {
+            $0.properties.contains(.notify) || $0.properties.contains(.read)
+        })
+    }
 }
 
 extension UmbrellaBLEManager: CBCentralManagerDelegate {
@@ -319,6 +401,9 @@ extension UmbrellaBLEManager: CBCentralManagerDelegate {
         rssi RSSI: NSNumber
     ) {
         Task { @MainActor in
+            guard isMatchingUmbrellaPeripheral(peripheral, advertisementData: advertisementData) else {
+                return
+            }
             discoveredPeripheral = peripheral
             discoveredDeviceName = resolvedName(for: peripheral)
             connect(to: peripheral)
@@ -327,10 +412,11 @@ extension UmbrellaBLEManager: CBCentralManagerDelegate {
 
     nonisolated func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         Task { @MainActor in
+            print("BLE didConnect: \(resolvedName(for: peripheral))")
             connectedPeripheral = peripheral
             connectedDeviceName = resolvedName(for: peripheral)
             connectionPhase = .connecting(connectedDeviceName)
-            peripheral.discoverServices([UmbrellaBLEConstants.serviceUUID])
+            peripheral.discoverServices(nil)
         }
     }
 
@@ -373,20 +459,21 @@ extension UmbrellaBLEManager: CBPeripheralDelegate {
                 return
             }
 
-            guard let service = peripheral.services?.first(where: { $0.uuid == UmbrellaBLEConstants.serviceUUID }) else {
+            guard let services = peripheral.services, !services.isEmpty else {
                 let message = "Umbrella BLE service was not found."
                 lastError = message
                 connectionPhase = .unavailable(message)
                 return
             }
 
-            peripheral.discoverCharacteristics(
-                [
-                    UmbrellaBLEConstants.commandCharacteristicUUID,
-                    UmbrellaBLEConstants.statusCharacteristicUUID
-                ],
-                for: service
-            )
+            print("BLE discovered services: \(services.map { $0.uuid.uuidString })")
+
+            let matchingServices = services.filter { $0.uuid == UmbrellaBLEConstants.serviceUUID }
+            let servicesToInspect = matchingServices.isEmpty ? services : matchingServices
+
+            for service in servicesToInspect {
+                peripheral.discoverCharacteristics(nil, for: service)
+            }
         }
     }
 
@@ -402,24 +489,32 @@ extension UmbrellaBLEManager: CBPeripheralDelegate {
                 return
             }
 
-            commandCharacteristic = service.characteristics?.first(where: {
-                $0.uuid == UmbrellaBLEConstants.commandCharacteristicUUID
-            })
-            statusCharacteristic = service.characteristics?.first(where: {
-                $0.uuid == UmbrellaBLEConstants.statusCharacteristicUUID
-            })
+            let discoveredCharacteristics = service.characteristics ?? []
+            print(
+                "BLE discovered characteristics for \(service.uuid.uuidString): " +
+                "\(discoveredCharacteristics.map { "\($0.uuid.uuidString) [\($0.properties.rawValue)]" })"
+            )
 
-            guard let statusCharacteristic else {
-                let message = "Umbrella status characteristic is missing."
-                lastError = message
-                connectionPhase = .unavailable(message)
-                return
+            if commandCharacteristic == nil {
+                commandCharacteristic = chooseCommandCharacteristic(from: discoveredCharacteristics)
             }
 
-            connectedDeviceName = resolvedName(for: peripheral)
-            connectionPhase = .connected(connectedDeviceName ?? UmbrellaBLEConstants.advertisedName)
-            peripheral.setNotifyValue(true, for: statusCharacteristic)
-            peripheral.readValue(for: statusCharacteristic)
+            if statusCharacteristic == nil {
+                statusCharacteristic = chooseStatusCharacteristic(from: discoveredCharacteristics)
+            }
+
+            if let statusCharacteristic, commandCharacteristic != nil {
+                connectionTimeoutTask?.cancel()
+                connectionTimeoutTask = nil
+                connectedDeviceName = resolvedName(for: peripheral)
+                connectionPhase = .connected(connectedDeviceName ?? UmbrellaBLEConstants.advertisedName)
+                peripheral.setNotifyValue(true, for: statusCharacteristic)
+                peripheral.readValue(for: statusCharacteristic)
+            } else if peripheral.services?.allSatisfy({ $0.characteristics != nil }) == true {
+                let message = "Umbrella BLE characteristics are missing."
+                lastError = message
+                connectionPhase = .unavailable(message)
+            }
         }
     }
 
@@ -434,7 +529,7 @@ extension UmbrellaBLEManager: CBPeripheralDelegate {
                 return
             }
 
-            if characteristic.uuid == UmbrellaBLEConstants.statusCharacteristicUUID {
+            if characteristic.uuid == UmbrellaBLEConstants.statusCharacteristicUUID || characteristic.uuid == statusCharacteristic?.uuid {
                 updateStatus(from: characteristic.value)
             }
         }
@@ -451,7 +546,7 @@ extension UmbrellaBLEManager: CBPeripheralDelegate {
                 return
             }
 
-            if characteristic.uuid == UmbrellaBLEConstants.commandCharacteristicUUID {
+            if characteristic.uuid == UmbrellaBLEConstants.commandCharacteristicUUID || characteristic.uuid == commandCharacteristic?.uuid {
                 requestStatus()
             }
         }
