@@ -29,10 +29,40 @@
 		F8D8B4B22F64853000ED2B57 /* Umbrella AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Umbrella AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		F8D8B4C52F64853000ED2B57 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				README.md,
+			);
+			target = F8D8B49A2F64852E00ED2B57 /* Umbrella App */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		F8D8B4C62F64853000ED2B57 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = F8D8B4972F64852E00ED2B57 /* Sources */;
+			membershipExceptions = (
+				"Umbrella AppTests/Umbrella_AppTests.swift",
+				"Umbrella AppUITests/Umbrella_AppUITests.swift",
+				"Umbrella AppUITests/Umbrella_AppUITestsLaunchTests.swift",
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		F8D8B49D2F64852E00ED2B57 /* Umbrella App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Umbrella App";
+			explicitFolders = (
+				"Umbrella AppTests",
+				"Umbrella AppUITests",
+			);
+			exceptions = (
+				F8D8B4C52F64853000ED2B57 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+				F8D8B4C62F64853000ED2B57 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */,
+			);
+			path = "";
 			sourceTree = "<group>";
 		};
 		F8D8B4AB2F64853000ED2B57 /* Umbrella AppTests */ = {
@@ -398,7 +428,9 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "The umbrella app uses Bluetooth to connect to your Raspberry Pi umbrella controller.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "The umbrella app uses Bluetooth to connect to your Raspberry Pi umbrella controller.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "The umbrella app uses your iPhone's location to send accurate coordinates to the Raspberry Pi.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -443,7 +475,9 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "The umbrella app uses Bluetooth to connect to your Raspberry Pi umbrella controller.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "The umbrella app uses Bluetooth to connect to your Raspberry Pi umbrella controller.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "The umbrella app uses your iPhone's location to send accurate coordinates to the Raspberry Pi.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
