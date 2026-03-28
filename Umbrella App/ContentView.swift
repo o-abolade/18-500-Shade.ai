@@ -2,23 +2,29 @@
 //  ContentView.swift
 //  Umbrella App
 //
-//  Created by Bonnie Ji on 3/13/26.
+//  Root view: ConnectView when disconnected, ControlView when connected.
 //
 
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var viewModel = UmbrellaViewModel()
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        NavigationStack {
+            Group {
+                if viewModel.isConnected {
+                    ControlView(viewModel: viewModel)
+                } else {
+                    ConnectView(viewModel: viewModel)
+                }
+            }
         }
-        .padding()
     }
 }
 
-#Preview {
-    ContentView()
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+    }
 }
