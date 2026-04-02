@@ -636,7 +636,7 @@ extension UmbrellaBLEManager: CBPeripheralDelegate {
                 centralManager.cancelPeripheralConnection(peripheral)
                 Task { @MainActor [weak self] in
                     try? await Task.sleep(nanoseconds: 500_000_000)
-                    self?.startScan()
+                    self?.startScanning()
                 }
                 return
             }
