@@ -634,7 +634,8 @@ extension UmbrellaBLEManager: CBPeripheralDelegate {
             if matchingServices.isEmpty {
                 print("BLE WRONG DEVICE — our service UUID not found. Disconnecting and re-scanning.")
                 centralManager.cancelPeripheralConnection(peripheral)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: 500_000_000)
                     self?.startScan()
                 }
                 return
