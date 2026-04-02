@@ -295,17 +295,19 @@ final class UmbrellaBLEManager: NSObject, ObservableObject {
         _ peripheral: CBPeripheral,
         advertisementData: [String: Any]
     ) -> Bool {
-        if resolvedName(for: peripheral).caseInsensitiveCompare(UmbrellaBLEConstants.advertisedName) == .orderedSame {
+        // Only match on LIVE advertisement data — never on iOS-cached peripheral.name.
+        // Using the cached name causes iOS to reconnect to wrong previously-seen devices.
+
+        if let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID],
+           serviceUUIDs.contains(UmbrellaBLEConstants.serviceUUID) {
+            print("BLE matched by service UUID in advertisement")
             return true
         }
 
         if let localName = advertisementData[CBAdvertisementDataLocalNameKey] as? String,
            localName.caseInsensitiveCompare(UmbrellaBLEConstants.advertisedName) == .orderedSame {
+            print("BLE matched by local name in advertisement: \(localName)")
             return true
-        }
-
-        if let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
-            return serviceUUIDs.contains(UmbrellaBLEConstants.serviceUUID)
         }
 
         return false
@@ -626,9 +628,19 @@ extension UmbrellaBLEManager: CBPeripheralDelegate {
             print("BLE discovered services: \(services.map { $0.uuid.uuidString })")
 
             let matchingServices = services.filter { $0.uuid == UmbrellaBLEConstants.serviceUUID }
-            let servicesToInspect = matchingServices.isEmpty ? services : matchingServices
 
-            for service in servicesToInspect {
+            // If our service UUID is completely absent, this is the wrong device.
+            // Disconnect and resume scanning so we find the real Pi.
+            if matchingServices.isEmpty {
+                print("BLE WRONG DEVICE — our service UUID not found. Disconnecting and re-scanning.")
+                centralManager.cancelPeripheralConnection(peripheral)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    self?.startScan()
+                }
+                return
+            }
+
+            for service in matchingServices {
                 peripheral.discoverCharacteristics(nil, for: service)
             }
         }
